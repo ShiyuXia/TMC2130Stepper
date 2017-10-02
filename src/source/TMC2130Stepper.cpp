@@ -13,6 +13,79 @@ TMC2130Stepper::TMC2130Stepper(uint8_t pinEN, uint8_t pinDIR, uint8_t pinStep, u
 	begin();
 }
 
+//#define TMC2130_USES_HW_SPI
+#define TMC2130_USES_SW_SPI
+
+#ifdef TMC2130_USES_SW_SPI
+
+  #define TMC_SWSPI_MISO_PIN 26 //PD1 MISO
+  #define TMC_SWSPI_SCK_PIN  27 //PD2 SCK
+  #define TMC_SWSPI_MOSI_PIN 28 //PD3 MOSI
+
+  #define tmc_transfer(x) shiftData( TMC_SWSPI_MOSI_PIN, TMC_SWSPI_SCK_PIN, TMC_SWSPI_MISO_PIN, MSBFIRST, x)
+
+  //Combined shiftOut and shiftIn from Arduino wiring_shift.c
+  uint32_t shiftData( uint32_t ulDataOutPin,  uint32_t ulClockPin, uint32_t ulDataInPin, uint32_t ulBitOrder, uint32_t ulVal )
+  {
+    uint8_t value = 0 ;
+    uint8_t i ;
+
+    for ( i=0 ; i < 8 ; ++i )
+      {
+      // Write bit
+      if ( ulBitOrder == LSBFIRST )
+          {
+        digitalWrite( ulDataOutPin, !!(ulVal & (1 << i)) ) ;
+          }
+      else
+          {
+        digitalWrite( ulDataOutPin, !!(ulVal & (1 << (7 - i))) ) ;
+          }
+
+      // Start clock pulse
+      digitalWrite( ulClockPin, HIGH ) ;
+
+      // Read bit
+      if ( ulBitOrder == LSBFIRST )
+          {
+        value |= (digitalRead( ulDataInPin ) ? 1 : 0) << i ;
+          }
+      else
+          {
+        value |= (digitalRead( ulDataInPin ) ? 1 : 0) << (7 - i) ;
+          }
+
+      // Stop clock pulse
+      digitalWrite( ulClockPin, LOW ) ;
+    }
+
+    return value;
+  }
+#endif TMC2130_USES_SW_SPI
+
+void tmc2130_transfer_begin() {
+  #ifdef TMC2130_USES_HW_SPI
+    SPI.begin();
+    SPI.beginTransaction(SPISettings(2000000, MSBFIRST, SPI_MODE3));
+  #endif
+}
+
+void tmc2130_transfer_end() {
+  #ifdef TMC2130_USES_HW_SPI
+    SPI.endTransaction();
+  #endif
+}
+
+byte tmc2130_transfer(uint8_t val) {
+  #ifdef TMC2130_USES_HW_SPI
+    return SPI.transfer(val);
+  #endif
+
+  #ifdef TMC2130_USES_SW_SPI
+    return tmc_transfer(val);
+  #endif
+}
+
 void TMC2130Stepper::begin() {
 #ifdef TMC2130DEBUG
 	Serial.println("TMC2130 Stepper driver library");
@@ -59,11 +132,13 @@ void TMC2130Stepper::begin() {
 //uint32_t TMC2130Stepper::send2130(uint8_t addressByte, uint32_t *config, uint32_t value, uint32_t mask) {
 void TMC2130Stepper::send2130(uint8_t addressByte, uint32_t *config) {
 	//uint8_t s;
-	SPI.begin();
-	SPI.beginTransaction(SPISettings(16000000/8, MSBFIRST, SPI_MODE3));
+	//SPI.begin();
+	//SPI.beginTransaction(SPISettings(16000000/8, MSBFIRST, SPI_MODE3));
+	tmc2130_transfer_begin();
 	digitalWrite(_pinCS, LOW);
 
-	status_response = SPI.transfer(addressByte & 0xFF); // s = 
+	//status_response = SPI.transfer(addressByte & 0xFF); // s = 
+	status_response = tmc2130_transfer(addressByte & 0xFF);
 	#ifdef TMC2130DEBUG
 		Serial.println("## Received parameters:");
 		Serial.print("## Address byte: ");
@@ -77,28 +152,32 @@ void TMC2130Stepper::send2130(uint8_t addressByte, uint32_t *config) {
 	if (addressByte >> 7) { // Check if WRITE command
 		//*config &= ~mask; // Clear bits being set
 		//*config |= (value & mask); // Set new values
-		SPI.transfer((*config >> 24) & 0xFF);
-		SPI.transfer((*config >> 16) & 0xFF);
-		SPI.transfer((*config >>  8) & 0xFF);
-		SPI.transfer(*config & 0xFF);
+		tmc2130_transfer((*config >> 24) & 0xFF);
+		tmc2130_transfer((*config >> 16) & 0xFF);
+		tmc2130_transfer((*config >>  8) & 0xFF);
+		tmc2130_transfer(*config & 0xFF);
 		#ifdef TMC2130DEBUG
 			Serial.println("## WRITE cmd");
 			Serial.println("##########################");
 		#endif
 	} else { // READ command
-		SPI.transfer16(0x0000); // Clear SPI
-		SPI.transfer16(0x0000);
+		//SPI.transfer16(0x0000); // Clear SPI
+		//SPI.transfer16(0x0000);
+		tmc2130_transfer(0x00);
+		tmc2130_transfer(0x00);
+		tmc2130_transfer(0x00);
+		tmc2130_transfer(0x00);
 		digitalWrite(_pinCS, HIGH);
 		digitalWrite(_pinCS, LOW);
 
-		SPI.transfer(addressByte & 0xFF); // Send the address byte again
-		*config  = SPI.transfer(0x00);
+		tmc2130_transfer(addressByte & 0xFF); // Send the address byte again
+		*config  = tmc2130_transfer(0x00);
 		*config <<= 8;
-		*config |= SPI.transfer(0x00);
+		*config |= tmc2130_transfer(0x00);
 		*config <<= 8;
-		*config |= SPI.transfer(0x00);
+		*config |= tmc2130_transfer(0x00);
 		*config <<= 8;
-		*config |= SPI.transfer(0x00);
+		*config |= tmc2130_transfer(0x00);
 		#ifdef TMC2130DEBUG
 			Serial.println("## READ cmd");
 			Serial.print("## Received config: ");
@@ -108,7 +187,8 @@ void TMC2130Stepper::send2130(uint8_t addressByte, uint32_t *config) {
 	}
 
 	digitalWrite(_pinCS, HIGH);
-	SPI.endTransaction();
+	//SPI.endTransaction();
+	tmc2130_transfer_end();
 
 	//return s;
 }
