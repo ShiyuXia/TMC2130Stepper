@@ -61,7 +61,7 @@ TMC2130Stepper::TMC2130Stepper(uint8_t pinEN, uint8_t pinDIR, uint8_t pinStep, u
 
     return value;
   }
-#endif TMC2130_USES_SW_SPI
+#endif //TMC2130_USES_SW_SPI
 
 void tmc2130_transfer_begin() {
   #ifdef TMC2130_USES_HW_SPI
