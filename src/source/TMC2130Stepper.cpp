@@ -99,10 +99,10 @@ void TMC2130Stepper::begin() {
 	Serial.println(_pinCS);
 #endif
 	//set pins
-	pinMode(_pinEN, OUTPUT);
-	pinMode(_pinDIR, OUTPUT);
-	pinMode(_pinSTEP, OUTPUT);
-	pinMode(_pinCS, OUTPUT);
+	pinMode(_pinEN, OUTPUT_HIGH);
+	pinMode(_pinDIR, OUTPUT_LOW);
+	pinMode(_pinSTEP, OUTPUT_LOW);
+	pinMode(_pinCS, OUTPUT_HIGH);
 	digitalWrite(_pinEN, HIGH); //deactivate driver (LOW active)
 	digitalWrite(_pinDIR, LOW); //LOW or HIGH
 	digitalWrite(_pinSTEP, LOW);

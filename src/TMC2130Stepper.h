@@ -5,6 +5,8 @@
 
 #if defined(ARDUINO) && ARDUINO >= 100
 	#include <Arduino.h>
+#else
+	#include <Core.h>
 #endif
 
 const uint32_t TMC2130Stepper_version = 0x10100; // v1.1.0
